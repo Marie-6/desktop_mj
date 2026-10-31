@@ -69,6 +69,7 @@ Can't find the 🎤? On MacBooks with a notch, a crowded menu bar hides it. Pres
 
 - **Give a drink**: 🍊 orange juice (his favourite), 🥤 Coca-Cola (it's okay), 🔵 Pepsi (he hates it)
 - **🏠 Studio**: open the studio and **🎙 record a song** from his current era
+  - Recording **Thriller** turns the studio into a moonlit graveyard, like the short film, with zombie hands, fog and lightning
 - **Visit a friend**
 - **Dance moves**: 🌙 Moonwalk, 🌀 Spin, 🧟 Zombie dance (Thriller era)
 - **🚶 Come out and play** / **👀 Peek** from the left or right edge

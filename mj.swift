@@ -765,6 +765,7 @@ final class StudioView: NSView {
             let a: [NSAttributedString.Key: Any] = [.font: NSFont(name: "Menlo-Bold", size: size) ?? .boldSystemFont(ofSize: size), .foregroundColor: hex(c)]
             (s as NSString).draw(at: NSPoint(x: CGFloat(x) * S, y: CGFloat(Studio.h - y) * S), withAttributes: a)
         }
+        if on && studio.thriller { drawGraveyard(t, R, text); return }
         // Room shell, walls and floor.
         R(0, 0, 92, 58, 0x1a1018); R(1, 1, 90, 2, 0x6a3a9a)
         R(1, 4, 90, 42, 0x3b2350)
@@ -812,11 +813,77 @@ final class StudioView: NSView {
     }
 }
 
+extension StudioView {
+    // While he records "Thriller" the studio turns into the graveyard from the short film.
+    func drawGraveyard(_ t: Int, _ R: (Int, Int, Int, Int, UInt32) -> Void, _ text: (String, Int, Int, CGFloat, UInt32) -> Void) {
+        func fog(_ x: Int, _ y: Int, _ w: Int, _ h: Int, _ a: CGFloat) {
+            hex(0xb8c4d8).withAlphaComponent(a).setFill()
+            NSRect(x: CGFloat(x) * S, y: CGFloat(Studio.h - y - h) * S, width: CGFloat(w) * S, height: CGFloat(h) * S).fill(using: .sourceOver)
+        }
+        let flash = t % 420 < 4 || (t % 420 > 8 && t % 420 < 11) // lightning, twice in quick succession
+        // Night sky, darker at the top.
+        R(0, 0, 92, 58, 0x07060c)
+        let sky: [UInt32] = flash ? [0x6a6a9a, 0x7a7aaa, 0x8a8ab8, 0x9a9ac6] : [0x0a0918, 0x110f24, 0x181530, 0x201a3a]
+        for (i, c) in sky.enumerated() { R(1, 1 + i * 10, 90, 10, c) }
+        for (i, (x, y)) in [(8, 4), (19, 9), (27, 3), (38, 7), (51, 4), (60, 11), (86, 13), (45, 15), (14, 16)].enumerated() {
+            R(x, y, 1, 1, (t / 12 + i) % 5 == 0 ? 0x6a6a8a : 0xe8e8ff)
+        }
+        // Full moon with a cloud drifting across it.
+        R(68, 4, 10, 10, 0xf2eccb); R(67, 6, 12, 6, 0xf2eccb); R(70, 3, 6, 12, 0xf2eccb)
+        R(71, 6, 2, 2, 0xd8d0a8); R(74, 10, 3, 2, 0xd8d0a8); R(69, 9, 1, 1, 0xd8d0a8)
+        let cx = 40 + (t / 6) % 70
+        R(cx, 9, 14, 2, 0x2c2a44); R(cx + 3, 8, 8, 1, 0x2c2a44); R(cx - 2, 10, 4, 1, 0x2c2a44)
+        // A bat flapping past the moon.
+        let bx = 92 - (t / 2) % 120, by = 7 + Int(sin(Double(t) / 6) * 2)
+        R(bx, by, 2, 1, 0x05040a); R(bx - 2, by - ((t / 4) % 2), 2, 1, 0x05040a); R(bx + 2, by - ((t / 4) % 2), 2, 1, 0x05040a)
+        // The old house on the hill, one window flickering.
+        R(1, 30, 30, 16, 0x0d0b16); R(4, 22, 18, 9, 0x0d0b16); R(6, 19, 14, 3, 0x0d0b16); R(9, 17, 8, 2, 0x0d0b16)
+        R(17, 14, 3, 6, 0x0d0b16) // chimney
+        R(8, 25, 3, 3, (t / 9) % 7 == 0 ? 0x3a2a10 : 0xf5c542); R(15, 25, 3, 3, 0x1a1626); R(12, 33, 3, 5, 0x1a1626)
+        R(22, 32, 3, 3, (t / 13) % 5 == 0 ? 0xf5c542 : 0x2a2010)
+        // A dead tree, branches reaching out.
+        R(84, 18, 3, 30, 0x0d0b16); R(80, 22, 5, 1, 0x0d0b16); R(79, 20, 2, 2, 0x0d0b16); R(87, 25, 4, 1, 0x0d0b16)
+        R(89, 23, 1, 2, 0x0d0b16); R(82, 28, 2, 1, 0x0d0b16); R(85, 15, 1, 3, 0x0d0b16); R(86, 16, 2, 1, 0x0d0b16)
+        // Graveyard ground.
+        R(1, 44, 90, 13, flash ? 0x2a3a2a : 0x141c14); R(1, 44, 90, 1, flash ? 0x3a5a3a : 0x1f2e1c)
+        for x in stride(from: 2, to: 90, by: 5) { R(x, 43, 1, 1, 0x1f2e1c) }
+        // Tombstones (clear of the mic spot, where Mike stands).
+        let stone: UInt32 = flash ? 0x9a9aa8 : 0x5a5a68, dark: UInt32 = flash ? 0x6a6a78 : 0x3a3a46
+        for (x, y, h) in [(5, 38, 8), (17, 40, 7), (29, 37, 9), (69, 39, 8), (79, 41, 6)] {
+            R(x, y, 7, h, stone); R(x + 1, y - 1, 5, 1, stone); R(x + 6, y, 1, h, dark)
+            R(x + 3, y + 2, 1, 4, dark); R(x + 2, y + 3, 3, 1, dark) // cross
+            R(x - 1, y + h, 9, 1, 0x2a2018) // fresh dirt
+        }
+        R(39, 35, 2, 11, stone); R(37, 38, 6, 2, stone) // a big cross
+        // Zombie hands clawing up out of the graves.
+        for (i, x) in [12, 24, 76].enumerated() {
+            let up = max(0, Int(sin(Double(t + i * 40) / 18) * 5))
+            if up > 0 {
+                R(x, 50 - up, 2, up, 0x5a7a4a)
+                R(x - 1, 49 - up, 1, 2, 0x6a8a5a); R(x, 48 - up, 1, 2, 0x6a8a5a); R(x + 1, 48 - up, 1, 2, 0x6a8a5a); R(x + 2, 49 - up, 1, 2, 0x6a8a5a)
+                R(x - 1, 50, 4, 1, 0x2a2018)
+            }
+        }
+        // Low fog rolling across.
+        for i in 0..<5 {
+            let fx = (i * 23 + t / (3 + i % 2)) % 120 - 20
+            fog(fx, 47 + (i % 3) * 3, 24, 2, 0.18); fog(fx + 4, 46 + (i % 3) * 3, 14, 1, 0.12)
+        }
+        // The title, dripping red.
+        text("THRILLER", 33, 23, 16, flash ? 0xffffff : 0xd8141e)
+        for (k, x) in [35, 40, 46, 51, 57].enumerated() {
+            let d = (t / 5 + k * 7) % 12
+            R(x, 22, 1, 1 + d / 3, 0xa00c14)
+        }
+    }
+}
+
 final class Studio {
     static let w = 92, h = 58
     let window: NSWindow
     let view = StudioView()
     var onAir = false, records = 0, t = 0
+    var thriller = false // recording the real "Thriller": the room becomes the graveyard
 
     init(screen: NSRect) {
         let size = NSSize(width: CGFloat(Studio.w) * S, height: CGFloat(Studio.h) * S)
@@ -1528,7 +1595,7 @@ final class Mike {
                 }
             }
         case .record:
-            studio.onAir = true
+            studio.onAir = true; studio.thriller = realTitle == "Thriller"
             if let z = songZombie, z.contains(modeTicks) { // Thriller's zombie dance, before the song gets going
                 zombieStep(modeTicks - z.lowerBound, length: z.count)
                 if modeTicks == z.upperBound - 1 { facing = -1 }
@@ -1922,7 +1989,8 @@ if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--preview" {
     let sv = StudioView(frame: NSRect(x: 0, y: 0, width: CGFloat(Studio.w) * S, height: CGFloat(Studio.h) * S))
     let ctx = NSGraphicsContext.current!
     ctx.saveGraphicsState()
-    let dummy = Studio(screen: NSRect(x: 0, y: 0, width: 2000, height: 1000)); dummy.records = 3; dummy.onAir = true; dummy.t = 4
+    let dummy = Studio(screen: NSRect(x: 0, y: 0, width: 2000, height: 1000)); dummy.records = 3; dummy.onAir = true; dummy.t = Int(ProcessInfo.processInfo.environment["MJ_T"] ?? "4") ?? 4
+    dummy.thriller = ProcessInfo.processInfo.environment["MJ_THRILLER"] != nil
     dummy.window.orderOut(nil); sv.studio = dummy; sv.draw(sv.bounds)
     ctx.restoreGraphicsState()
     try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[2]))
