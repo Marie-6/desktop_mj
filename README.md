@@ -62,7 +62,10 @@ pkill -x DesktopMJ; nohup ./DesktopMJ &
 
 ## How to play
 
-Click the **🎤** in the menu bar to see everything he can do:
+Click the **🎤** in the menu bar, or **right-click Little MJ**, to see everything he can do.
+
+Can't find the 🎤? On MacBooks with a notch, a crowded menu bar hides it. Press **⌃ Control + ⌥ Option + M** from anywhere to open his menu where your mouse is, or run `~/DesktopMJ/DesktopMJ` again.
+
 
 - **Give a drink**: 🍊 orange juice (his favourite), 🥤 Coca-Cola (it's okay), 🔵 Pepsi (he hates it)
 - **🏠 Studio**: open the studio and **🎙 record a song** from his current era
@@ -70,7 +73,9 @@ Click the **🎤** in the menu bar to see everything he can do:
 - **Dance moves**: 🌙 Moonwalk, 🌀 Spin, 🧟 Zombie dance (Thriller era)
 - **🚶 Come out and play** / **👀 Peek** from the left or right edge
 - **💤 Nap time** / **☀️ Wake him up**
+- **🙈 Hide for…** 1, 5 or 15 minutes, or 1 hour: he disappears without quitting and comes back on his own. To bring him back sooner, choose **👋 Come back now** in the 🎤 menu, press **⌃⌥M**, or run `~/DesktopMJ/DesktopMJ` again.
 - **Walking style**: mix, facing forward, or sideways
+- **Visiting style**: when he visits a friend, he faces you, turns sideways to face his friend, or mixes it up
 - **Wardrobe**: switch outfits. Each era unlocks as he grows, plus extra tour outfits.
 - **🚪 Closet**: sunglasses, hats, 🦇 bat buddy, 🎃 pumpkin bucket
 - **Sound**: mute or unmute

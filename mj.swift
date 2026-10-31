@@ -1,10 +1,11 @@
 // DesktopMJ — Little MJ lives in a pixel studio on your screen, making music.
 // He grows through 9 looks, loves orange juice, and visits Muscles, Bubbles and Louie.
-// Build: ./build.sh   Run: ./DesktopMJ   (menu bar 🎤 for drinks, friends and more)
+// Build: ./build.sh   Run: ./DesktopMJ   (menu bar 🎤, or right-click him, for drinks, friends and more)
 // Real songs: put audio files (mp3, m4a, wav, mp4…) in ./songs, named after a song in his era's list
 // (e.g. "Thriller.mp4"); he sings the ones that match the outfit he's wearing when you record.
 import AppKit
 import AVFoundation
+import Carbon.HIToolbox
 import QuartzCore
 
 // MARK: - Pixel canvas
@@ -1043,6 +1044,8 @@ final class MikeView: NSView {
         if dragging { mike?.moveHeld(to: NSPoint(x: p.x - grabOffset.x, y: p.y - grabOffset.y)) }
     }
     override func mouseUp(with e: NSEvent) { if dragging { mike?.drop() } else { mike?.poke() } }
+    // Right-click opens the same menu as 🎤, for when the menu bar hides it.
+    override func menu(for e: NSEvent) -> NSMenu? { (NSApp.delegate as? AppDelegate)?.statusItem.menu }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
@@ -1142,6 +1145,10 @@ final class Mike {
     var walkStyle = UserDefaults.standard.integer(forKey: "DesktopMJ.walkStyle") { // 0 mix, 1 facing forward, 2 sideways
         didSet { UserDefaults.standard.set(walkStyle, forKey: "DesktopMJ.walkStyle") }
     }
+    var visitStyle = UserDefaults.standard.integer(forKey: "DesktopMJ.visitStyle") { // same choices, for hanging out with a friend
+        didSet { UserDefaults.standard.set(visitStyle, forKey: "DesktopMJ.visitStyle") }
+    }
+    var visitSide = false // this visit he stands sideways, facing his friend
     var floorY: CGFloat { ledge?.top ?? ground }
 
     // Other apps' normal windows, front to back, in screen coordinates (origin bottom-left).
@@ -1277,6 +1284,7 @@ final class Mike {
         walk(to: fx + side * 85, speed: 2.2, status: "on the way to see \(friends[k].name)") { [weak self] in
             guard let self, self.friend === f else { return }
             self.facing = -side; f.flipped = side < 0 && k != 1
+            self.visitSide = self.visitStyle == 2 || (self.visitStyle == 0 && Bool.random())
             self.setMode(.visit, for: 360); self.status = "hanging out with \(friends[k].name)"
         }
     }
@@ -1474,7 +1482,22 @@ final class Mike {
         }
     }
 
+    // Hidden: off screen and paused (no songs, no visitors) until the timer runs out or you call him back.
+    var hiddenUntil: Date?
+    func hide(minutes: Double) {
+        if mode == .held { drop() }
+        if mode == .record { synth.stop(); studio.onAir = false }
+        friend?.leave(); spinning = false
+        hiddenUntil = Date().addingTimeInterval(minutes * 60); window.orderOut(nil)
+    }
+    func unhide() {
+        guard hiddenUntil != nil else { return }
+        hiddenUntil = nil; window.orderFrontRegardless(); setMode(.idle, for: 120)
+        say("I'm back! Hee-hee!", 70); spawn("✨", 3, color: .systemYellow)
+    }
+
     func tick() {
+        if let h = hiddenUntil { if Date() >= h { unhide() } else { return } }
         ticks += 1; modeTicks += 1
         studio.tick()
         if ticks % 30 == 0 {
@@ -1621,7 +1644,7 @@ final class Mike {
     func visitTick() {
         guard let f = friend, visiting >= 0 else { setMode(.idle, for: 60); return }
         let info = friends[visiting]
-        pose = .stand
+        pose = visitSide ? .side(left: facing < 0, step: 0) : .stand
         switch modeTicks {
         case 1:
             say("Hi \(info.name)! ♥", 70); spawn("♥", 3)
@@ -1629,7 +1652,9 @@ final class Mike {
         case 140:
             say(info.mjLines.randomElement()!, 80); f.excited = true
         case 140..<220:
-            pose = (modeTicks / 10) % 2 == 0 ? .cheer : .point; bounce = (modeTicks / 5) % 2 == 0
+            if visitSide { pose = .side(left: facing < 0, step: (modeTicks / 10) % 2) } // a little sideways bop
+            else { pose = (modeTicks / 10) % 2 == 0 ? .cheer : .point }
+            bounce = (modeTicks / 5) % 2 == 0
             if modeTicks == 160 { f.say(info.lines.randomElement()!, 80) }
         case 220: f.excited = false; bump(happy: 15); spawn("♥", 2)
         case 290: say("See you later, \(info.name)! ♥", 70)
@@ -1655,6 +1680,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.button?.title = "🎤"
         let menu = NSMenu(); menu.delegate = self; menu.autoenablesItems = false
         statusItem.menu = menu
+        // Ways to reach him when the 🎤 is hidden behind the notch: ⌃⌥M, or opening DesktopMJ again.
+        hotKeyAction = { [weak self] in self?.summon() }
+        registerHotKey()
+        DistributedNotificationCenter.default().addObserver(forName: summonNote, object: nil, queue: .main) { [weak self] _ in self?.summon() }
+    }
+
+    // Brings him back if he's hiding, otherwise opens his menu where the mouse is.
+    func summon() {
+        if mike.hiddenUntil != nil { mike.unhide(); return }
+        guard let menu = statusItem.menu else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
 
     func bar(_ v: Double) -> String {
@@ -1671,6 +1708,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         let m = mike!, s = m.st
         menu.removeAllItems()
+        if m.hiddenUntil != nil {
+            menu.addItem(item("Little MJ is hiding 🙈", nil))
+            menu.addItem(item("👋 Come back now", #selector(unhide), key: "h"))
+            menu.addItem(.separator())
+            menu.addItem(item("Say goodbye (quit)", #selector(quit), key: "q"))
+            return
+        }
         menu.addItem(item("Little MJ · \(looks[s.look].name) (\(looks[s.look].year))", nil))
         if s.stage < eraCount - 1 {
             menu.addItem(item("Stage \(s.stage + 1)/\(eraCount) · songs \(s.songs)/\(songsPerLook) to grow up", nil))
@@ -1708,12 +1752,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(item("👀 Peek from the right edge", #selector(dockRight)))
         }
         menu.addItem(item(m.mode == .rest ? "☀️ Wake him up" : "💤 Nap time", #selector(napToggle), key: "n"))
+        let hides = NSMenu()
+        for (t, mins) in [("1 minute", 1), ("5 minutes", 5), ("15 minutes", 15), ("1 hour", 60)] {
+            hides.addItem(item(t, #selector(hide(_:)), tag: mins))
+        }
+        let hd = item("🙈 Hide for…", #selector(noop)); hd.submenu = hides; menu.addItem(hd)
 
         let styles = NSMenu()
         for (i, t) in ["Mix it up", "Facing forward", "Sideways"].enumerated() {
             let it = item(t, #selector(setWalkStyle(_:)), tag: i); it.state = m.walkStyle == i ? .on : .off; styles.addItem(it)
         }
         let ws = item("Walking style", #selector(noop)); ws.submenu = styles; menu.addItem(ws)
+
+        let vstyles = NSMenu()
+        for (i, t) in ["Mix it up", "Facing forward", "Sideways"].enumerated() {
+            let it = item(t, #selector(setVisitStyle(_:)), tag: i); it.state = m.visitStyle == i ? .on : .off; vstyles.addItem(it)
+        }
+        let vs = item("Visiting style", #selector(noop)); vs.submenu = vstyles; menu.addItem(vs)
 
         let wardrobe = NSMenu()
         // a recoloured version ("Thriller Era · Blue Uniform") is listed right after the outfit it's based on
@@ -1763,6 +1818,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func dockRight() { mike.dock(1) }
     @objc func undock() { mike.undock() }
     @objc func setWalkStyle(_ s: NSMenuItem) { mike.walkStyle = s.tag }
+    @objc func setVisitStyle(_ s: NSMenuItem) { mike.visitStyle = s.tag }
     @objc func napToggle() { if mike.mode == .rest { mike.wakeUp("Good morning! Hee-hee!") } else { mike.rest() } }
     @objc func wear(_ s: NSMenuItem) { mike.wear(s.tag) }
     @objc func toggleSound() {
@@ -1777,6 +1833,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         a.addButton(withTitle: "Start over"); a.addButton(withTitle: "Cancel")
         if a.runModal() == .alertFirstButtonReturn { mike.reset() }
     }
+    @objc func hide(_ s: NSMenuItem) { mike.hide(minutes: Double(s.tag)) }
+    @objc func unhide() { mike.unhide() }
     @objc func quit() { mike.save(); NSApp.terminate(nil) }
     func applicationWillTerminate(_ n: Notification) { mike?.save() }
 }
@@ -1868,6 +1926,27 @@ if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--preview" {
     dummy.window.orderOut(nil); sv.studio = dummy; sv.draw(sv.bounds)
     ctx.restoreGraphicsState()
     try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[2]))
+    exit(0)
+}
+
+// ⌃⌥M from anywhere (a Carbon hot key needs no Accessibility permission).
+let summonNote = Notification.Name("DesktopMJ.summon")
+var hotKeyAction: (() -> Void)?
+func registerHotKey() {
+    var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+    InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in hotKeyAction?(); return noErr }, 1, &spec, nil, nil)
+    var ref: EventHotKeyRef?
+    RegisterEventHotKey(UInt32(kVK_ANSI_M), UInt32(controlKey | optionKey), EventHotKeyID(signature: 0x4D4A4D4A, id: 1), GetApplicationEventTarget(), 0, &ref)
+}
+
+// Opening DesktopMJ while he's already running calls the running one instead of starting a second Mike.
+let me = ProcessInfo.processInfo.processIdentifier
+let pgrep = Process(), out = Pipe()
+pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep"); pgrep.arguments = ["-x", "DesktopMJ"]; pgrep.standardOutput = out
+try? pgrep.run(); pgrep.waitUntilExit()
+let others = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).split(separator: "\n").compactMap { Int32($0) }.filter { $0 != me }
+if !others.isEmpty {
+    DistributedNotificationCenter.default().postNotificationName(summonNote, object: nil, userInfo: nil, deliverImmediately: true)
     exit(0)
 }
 
